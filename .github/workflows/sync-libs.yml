@@ -1,0 +1,198 @@
+name: Sync Python Libraries
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+  push:
+    paths:
+      - 'lib.txt'
+
+jobs:
+  sync-libraries:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install tools
+      run: |
+        pip install pipdeptree requests packaging
+    
+    - name: Create directories
+      run: |
+        mkdir -p libs/wheels
+        mkdir -p libs/source
+    
+    - name: Parse and check missing libraries
+      id: check
+      run: |
+        python3 << 'EOF'
+        import os
+        import re
+        from pathlib import Path
+        
+        libs_file = 'lib.txt'
+        requested_libs = []
+        
+        if os.path.exists(libs_file):
+            with open(libs_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        pkg_name = re.split(r'[=<>!\[\]]', line)[0].strip()
+                        requested_libs.append((line, pkg_name))
+        
+        existing = set()
+        libs_dir = Path('libs')
+        if libs_dir.exists():
+            for file in libs_dir.rglob('*'):
+                if file.suffix in ['.whl', '.gz', '.zip']:
+                    match = re.match(r'([a-zA-Z0-9_\-]+)-[0-9]', file.name)
+                    if match:
+                        existing.add(match.group(1))
+        
+        missing = []
+        for full, name in requested_libs:
+            if name not in existing:
+                missing.append(full)
+        
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write(f"missing_count={len(missing)}\n")
+            if missing:
+                f.write(f"missing_libs={' '.join(missing)}\n")
+        
+        print(f"Total requested: {len(requested_libs)}")
+        print(f"Already exist: {len(existing)}")
+        print(f"Missing: {len(missing)}")
+        EOF
+    
+    - name: Download missing libraries
+      if: steps.check.outputs.missing_count > 0
+      run: |
+        MISSING_LIBS="${{ steps.check.outputs.missing_libs }}"
+        
+        for lib in $MISSING_LIBS; do
+          echo "Downloading: $lib"
+          pip download --no-deps --only-binary=:all: -d libs/wheels "$lib" 2>/dev/null || \
+          pip download --no-deps --no-binary=:all: -d libs/source "$lib" 2>/dev/null || \
+          pip download -d libs "$lib" 2>/dev/null || \
+          echo "Failed: $lib"
+          
+          pip download -d libs "$lib" 2>/dev/null || true
+        done
+    
+    - name: Remove duplicates
+      run: |
+        cd libs/wheels 2>/dev/null || exit 0
+        for prefix in $(ls *.whl 2>/dev/null | sed -E 's/([a-zA-Z0-9_\-]+)-[0-9].*/\1/' | sort -u); do
+          ls -t ${prefix}-*.whl 2>/dev/null | tail -n +2 | xargs -r rm
+        done
+        cd ../..
+        
+        cd libs/source 2>/dev/null || exit 0
+        for prefix in $(ls *.tar.gz 2>/dev/null | sed -E 's/([a-zA-Z0-9_\-]+)-[0-9].*/\1/' | sort -u); do
+          ls -t ${prefix}-*.tar.gz 2>/dev/null | tail -n +2 | xargs -r rm
+        done
+        cd ../..
+    
+    - name: Generate manifest
+      run: |
+        python3 << 'EOF'
+        import json
+        from datetime import datetime
+        from pathlib import Path
+        
+        libs_dir = Path('libs')
+        libraries = []
+        
+        if libs_dir.exists():
+            for file in libs_dir.rglob('*'):
+                if file.suffix in ['.whl', '.gz', '.zip']:
+                    libraries.append(file.name)
+        
+        manifest = {
+            "generated": datetime.utcnow().isoformat(),
+            "total": len(libraries),
+            "libraries": sorted(libraries)
+        }
+        
+        with open('libs/manifest.json', 'w') as f:
+            json.dump(manifest, f, indent=2)
+        
+        with open('libs/MANIFEST.md', 'w') as f:
+            f.write(f"# Library Manifest\n\n")
+            f.write(f"**Generated:** {manifest['generated']}\n\n")
+            f.write(f"**Total Libraries:** {manifest['total']}\n\n")
+            f.write("## Library List\n\n```\n")
+            for lib in manifest['libraries']:
+                f.write(f"{lib}\n")
+            f.write("```\n")
+        EOF
+    
+    - name: Check for changes
+      id: changes
+      run: |
+        if git diff --quiet libs/; then
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+        else
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Commit and push
+      if: steps.changes.outputs.has_changes == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add libs/ lib.txt
+        git commit -m "chore: sync python libraries [skip ci]"
+        git push
+    
+    - name: Summary
+      run: |
+        echo "## Library Sync Complete" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- Total libraries: $(find libs -name '*.whl' -o -name '*.tar.gz' | wc -l)" >> $GITHUB_STEP_SUMMARY
+        echo "- New libraries: ${{ steps.check.outputs.missing_count }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+
+  cleanup:
+    runs-on: ubuntu-latest
+    needs: sync-libraries
+    if: github.event.schedule == '0 0 * * 0'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Clean old versions
+      run: |
+        cd libs/wheels 2>/dev/null || exit 0
+        for pkg in $(ls *.whl 2>/dev/null | sed -E 's/([a-zA-Z0-9_\-]+)-[0-9].*/\1/' | sort -u); do
+          ls -t ${pkg}-*.whl 2>/dev/null | tail -n +3 | xargs -r rm
+        done
+        cd ../..
+        
+        cd libs/source 2>/dev/null || exit 0
+        for pkg in $(ls *.tar.gz 2>/dev/null | sed -E 's/([a-zA-Z0-9_\-]+)-[0-9].*/\1/' | sort -u); do
+          ls -t ${pkg}-*.tar.gz 2>/dev/null | tail -n +3 | xargs -r rm
+        done
+        cd ../..
+    
+    - name: Commit cleanup
+      run: |
+        if git diff --quiet libs/; then
+          echo "No cleanup needed"
+        else
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add libs/
+          git commit -m "chore: cleanup old library versions [skip ci]"
+          git push
+        fi
