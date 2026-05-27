@@ -1,33 +1,35 @@
-name: Execute Python Code
+name: Cloud Execute
 
 on:
   workflow_dispatch:
     inputs:
       code:
-        description: 'Python code to execute'
+        description: 'Python code'
         required: true
         type: string
 
 jobs:
   execute:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    
     steps:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       
-      - name: Install PyTorch and dependencies
+      - name: Restore Library Cache
+        uses: actions/cache/restore@v3
+        with:
+          path: ~/.cache/pip
+          key: pip-cache-v1
+          restore-keys: pip-cache-v1
+      
+      - name: Install Dependencies (from cache)
         run: |
           pip install --upgrade pip
-          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-          pip install numpy pandas matplotlib scikit-learn
+          pip install torch torchvision tensorflow transformers
       
-      - name: Execute Code
+      - name: Execute
         run: |
-          echo '${{ github.event.inputs.code }}' | base64 -d > /tmp/code.py
-          echo "::group::Output"
-          python /tmp/code.py 2>&1
-          echo "::endgroup::"
+          echo '${{ github.event.inputs.code }}' | base64 -d > code.py
+          python code.py
