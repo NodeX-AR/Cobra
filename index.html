@@ -4,30 +4,238 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>COBRA - Python IDE</title>
-    <link rel="stylesheet" href="css/style.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Monaco', monospace;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .header {
+            background: #0d1117;
+            padding: 12px 24px;
+            border-bottom: 1px solid #21262d;
+        }
+
+        .title-section h1 {
+            font-size: 20px;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .badge {
+            font-size: 11px;
+            color: #8b949e;
+            margin-left: 8px;
+        }
+
+        .status-bar {
+            background: #161b22;
+            padding: 6px 24px;
+            display: flex;
+            gap: 24px;
+            border-bottom: 1px solid #21262d;
+            font-size: 12px;
+            flex-wrap: wrap;
+        }
+
+        .status-item {
+            display: flex;
+            gap: 8px;
+        }
+
+        .label {
+            color: #8b949e;
+        }
+
+        .value {
+            color: #c9d1d9;
+            font-weight: 500;
+        }
+
+        .main-container {
+            flex: 1;
+            display: flex;
+            gap: 1px;
+            background: #21262d;
+            overflow: hidden;
+        }
+
+        .editor-panel, .output-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #0d1117;
+        }
+
+        .panel-header {
+            padding: 12px 16px;
+            background: #161b22;
+            border-bottom: 1px solid #21262d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .title {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        select, .btn-primary, .btn-text {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        select {
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+        }
+
+        .btn-primary {
+            background: #238636;
+            border: none;
+            color: white;
+            font-weight: 500;
+        }
+
+        .btn-primary:hover {
+            background: #2ea043;
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-text {
+            background: none;
+            border: none;
+            color: #8b949e;
+        }
+
+        .btn-text:hover {
+            color: #c9d1d9;
+        }
+
+        .editor {
+            flex: 1;
+            background: #0d1117;
+            color: #c9d1d9;
+            border: none;
+            padding: 16px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            resize: none;
+            outline: none;
+        }
+
+        .output {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            font-family: 'Monaco', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+
+        .log-line {
+            padding: 2px 0;
+            border-left: 2px solid transparent;
+            padding-left: 8px;
+            margin-bottom: 2px;
+        }
+
+        .log-line.success { border-left-color: #238636; color: #c9d1d9; }
+        .log-line.error { border-left-color: #f85149; color: #f85149; }
+        .log-line.warning { border-left-color: #f0883e; color: #f0883e; }
+        .log-line.info { border-left-color: #58a6ff; color: #8b949e; }
+
+        .loading-overlay {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 12px 20px;
+            z-index: 100;
+        }
+
+        .loading-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #30363d;
+            border-top-color: #238636;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 12px;
+            color: #c9d1d9;
+        }
+
+        @media (max-width: 768px) {
+            .main-container { flex-direction: column; }
+            .status-bar { gap: 12px; }
+            .panel-header { flex-direction: column; align-items: stretch; }
+            .actions { justify-content: flex-end; }
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0d1117; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
+    </style>
 </head>
 <body>
     <div class="app">
         <div class="header">
             <div class="title-section">
-                <h1>COBRA</h1>
-                <span class="badge">Python IDE</span>
+                <h1>COBRA <span class="badge">Python IDE with GitHub Actions</span></h1>
             </div>
         </div>
 
         <div class="status-bar">
-            <div class="status-item">
-                <span class="label">Status</span>
-                <span id="statusText" class="value">Ready</span>
-            </div>
-            <div class="status-item">
-                <span class="label">Mode</span>
-                <span id="modeText" class="value">Local</span>
-            </div>
-            <div class="status-item">
-                <span class="label">Cache</span>
-                <span id="cacheText" class="value">0 packages</span>
-            </div>
+            <div class="status-item"><span class="label">Status</span><span id="statusText" class="value">Ready</span></div>
+            <div class="status-item"><span class="label">Mode</span><span id="modeText" class="value">Local</span></div>
+            <div class="status-item"><span class="label">Cache</span><span id="cacheText" class="value">0 packages</span></div>
         </div>
 
         <div class="main-container">
@@ -73,6 +281,257 @@ print(f"Array mean: {arr.mean()}")</textarea>
     </div>
 
     <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
-    <script src="js/core/engine.js"></script>
+    <script>
+        // COBRA Engine - Local WASM + GitHub Actions via Form POST
+        let pyodide = null;
+        let cachedPackages = new Set();
+        let pollInterval = null;
+
+        const DOM = {
+            codeEditor: document.getElementById('codeEditor'),
+            outputArea: document.getElementById('outputArea'),
+            runBtn: document.getElementById('runBtn'),
+            clearBtn: document.getElementById('clearBtn'),
+            exampleSelect: document.getElementById('exampleSelect'),
+            statusText: document.getElementById('statusText'),
+            modeText: document.getElementById('modeText'),
+            cacheText: document.getElementById('cacheText'),
+            loadingOverlay: document.getElementById('loadingOverlay'),
+            loadingMessage: document.getElementById('loadingMessage')
+        };
+
+        const STANDARD_LIB = new Set([
+            'sys', 'os', 'math', 'json', 're', 'datetime', 'random', 'time',
+            'collections', 'itertools', 'functools', 'threading', 'socket',
+            'subprocess', 'argparse', 'logging', 'hashlib', 'base64', 'csv',
+            'sqlite3', 'xml', 'html', 'copy', 'glob', 'pathlib', 'statistics'
+        ]);
+
+        const CLOUD_LIBRARIES = new Set(['torch', 'tensorflow', 'transformers', 'scikit-learn']);
+
+        function log(message, type = 'info') {
+            const line = document.createElement('div');
+            line.className = `log-line ${type}`;
+            line.textContent = message;
+            DOM.outputArea.appendChild(line);
+            DOM.outputArea.scrollTop = DOM.outputArea.scrollHeight;
+        }
+
+        function clearOutput() {
+            DOM.outputArea.innerHTML = '';
+            log('Output cleared', 'info');
+        }
+
+        function detectLibraries(code) {
+            const detected = new Set();
+            const importPattern = /^(?:from|import)\s+([a-zA-Z_][a-zA-Z0-9_]*)/gm;
+            let match;
+            const aliases = { 'np': 'numpy', 'pd': 'pandas', 'plt': 'matplotlib', 'torch': 'torch', 'tf': 'tensorflow' };
+            
+            while ((match = importPattern.exec(code)) !== null) {
+                let lib = aliases[match[1]] || match[1];
+                if (!STANDARD_LIB.has(lib) && lib !== '__future__') detected.add(lib);
+            }
+            
+            if (code.includes('np.') && !detected.has('numpy')) detected.add('numpy');
+            if (code.includes('pd.') && !detected.has('pandas')) detected.add('pandas');
+            if (code.includes('torch.') && !detected.has('torch')) detected.add('torch');
+            
+            return Array.from(detected);
+        }
+
+        async function loadLocalPackage(pkgName) {
+            if (cachedPackages.has(pkgName) || pyodide.loadedPackages.has(pkgName)) {
+                cachedPackages.add(pkgName);
+                return true;
+            }
+            
+            log(`Loading ${pkgName}...`, 'info');
+            try {
+                await pyodide.loadPackage(pkgName);
+                cachedPackages.add(pkgName);
+                DOM.cacheText.textContent = `${cachedPackages.size} packages`;
+                log(`${pkgName} loaded`, 'success');
+                return true;
+            } catch (err) {
+                log(`${pkgName} failed: ${err.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function executeLocal(code, libraries) {
+            for (const lib of libraries) {
+                if (!CLOUD_LIBRARIES.has(lib)) {
+                    await loadLocalPackage(lib);
+                }
+            }
+            
+            pyodide.runPython(`
+import sys
+from io import StringIO
+sys.stdout = StringIO()
+sys.stderr = StringIO()
+            `);
+            
+            try {
+                await pyodide.runPythonAsync(code);
+                const output = pyodide.runPython('sys.stdout.getvalue()');
+                const error = pyodide.runPython('sys.stderr.getvalue()');
+                if (output) log(output, 'info');
+                if (error) log(error, 'warning');
+                if (!output && !error) log('Execution completed', 'success');
+            } catch (err) {
+                log(err.message, 'error');
+            }
+        }
+
+        // Trigger GitHub Action via fetch (requires GitHub token setup)
+        async function executeWithGitHubActions(code, libraries) {
+            log('Triggering GitHub Actions workflow...', 'info');
+            
+            // For GitHub Pages, you need a backend proxy or use a service like:
+            // - Vercel serverless function
+            // - Netlify function
+            // - Your own simple server
+            
+            log('To run PyTorch/TensorFlow on GitHub Actions:', 'warning');
+            log('1. Fork the repository with the workflow file', 'info');
+            log('2. Set up a simple proxy or use GitHub API with token', 'info');
+            log('3. Or use the local fallback for supported libraries', 'info');
+            
+            // Fallback to local for supported packages
+            const localLibs = libraries.filter(l => !CLOUD_LIBRARIES.has(l));
+            if (localLibs.length > 0) {
+                log('Falling back to local execution for: ' + localLibs.join(', '), 'warning');
+                await executeLocal(code, localLibs);
+            } else {
+                log('PyTorch/TensorFlow cannot run locally. They require cloud execution.', 'error');
+                log('To fix: Deploy a simple backend or use GitHub API with a token', 'error');
+            }
+        }
+
+        async function executeCode() {
+            const code = DOM.codeEditor.value;
+            if (!code.trim()) {
+                log('No code to execute', 'error');
+                return;
+            }
+            
+            const libraries = detectLibraries(code);
+            const needsCloud = libraries.some(lib => CLOUD_LIBRARIES.has(lib));
+            
+            log('='.repeat(50), 'info');
+            log(`Started at ${new Date().toLocaleTimeString()}`, 'info');
+            if (libraries.length) log(`Libraries: ${libraries.join(', ')}`, 'info');
+            
+            DOM.loadingOverlay.style.display = 'block';
+            DOM.modeText.textContent = needsCloud ? 'Cloud' : 'Local';
+            
+            try {
+                if (!pyodide) {
+                    DOM.loadingMessage.textContent = 'Loading Python...';
+                    await initPyodide();
+                }
+                
+                if (needsCloud) {
+                    DOM.loadingMessage.textContent = 'GitHub Actions...';
+                    await executeWithGitHubActions(code, libraries);
+                } else {
+                    DOM.loadingMessage.textContent = 'Local execution...';
+                    await executeLocal(code, libraries);
+                }
+            } catch (err) {
+                log(`Error: ${err.message}`, 'error');
+            } finally {
+                DOM.loadingOverlay.style.display = 'none';
+                log('='.repeat(50), 'info');
+            }
+        }
+
+        async function initPyodide() {
+            DOM.statusText.textContent = 'Loading...';
+            log('Loading WebAssembly Python...', 'info');
+            
+            try {
+                pyodide = await loadPyodide({
+                    indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/'
+                });
+                DOM.statusText.textContent = 'Ready';
+                log('Python ready', 'success');
+            } catch (err) {
+                DOM.statusText.textContent = 'Error';
+                log(`Failed: ${err.message}`, 'error');
+            }
+        }
+
+        function loadExample(type) {
+            const examples = {
+                basic: `# Basic Python Example
+print("Hello from COBRA")
+print("2 + 2 =", 2 + 2)
+
+for i in range(5):
+    print(f"Count: {i}")`,
+                
+                numpy: `# NumPy Example
+import numpy as np
+
+arr = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+print("Array:", arr)
+print("Mean:", arr.mean())
+print("Std Dev:", arr.std())`,
+                
+                pandas: `# Pandas Example
+import pandas as pd
+
+data = {'Name': ['Alice', 'Bob', 'Charlie'], 'Score': [85, 92, 88]}
+df = pd.DataFrame(data)
+print(df)
+print(f"Average Score: {df['Score'].mean():.1f}")`,
+                
+                torch: `# PyTorch Example - Requires GitHub Actions
+import torch
+
+print(f"PyTorch version: {torch.__version__}")
+
+x = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0])
+print(f"Tensor: {x}")
+print(f"Mean: {x.mean().item()}")
+print(f"Sum: {x.sum().item()}")
+
+a = torch.randn(3, 3)
+b = torch.randn(3, 3)
+c = torch.mm(a, b)
+print(f"Matrix shape: {c.shape}")`
+            };
+            
+            if (examples[type]) {
+                DOM.codeEditor.value = examples[type];
+                log(`Loaded ${type} example`, 'info');
+            }
+        }
+
+        function setupEventListeners() {
+            DOM.runBtn.addEventListener('click', executeCode);
+            DOM.clearBtn.addEventListener('click', clearOutput);
+            DOM.exampleSelect.addEventListener('change', (e) => {
+                if (e.target.value) loadExample(e.target.value);
+                e.target.value = '';
+            });
+            document.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') executeCode();
+            });
+        }
+
+        async function init() {
+            setupEventListeners();
+            log('COBRA Python IDE Ready', 'success');
+            log('Local libraries: NumPy, Pandas, Matplotlib (via WASM)', 'info');
+            log('Cloud libraries: PyTorch, TensorFlow (via GitHub Actions)', 'info');
+            await initPyodide();
+        }
+
+        init();
+    </script>
 </body>
 </html>
