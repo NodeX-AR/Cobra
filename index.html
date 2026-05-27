@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>COBRA - Python IDE</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="app">
+        <div class="header">
+            <div class="title-section">
+                <h1>COBRA</h1>
+                <span class="badge">Python IDE</span>
+            </div>
+            <div class="header-actions">
+                <button id="settingsBtn" class="btn-secondary">Settings</button>
+            </div>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="status-label">Device</span>
+                <span id="deviceInfo" class="status-value">Loading...</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Execution Mode</span>
+                <span id="executionMode" class="status-value">Local</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">GitHub</span>
+                <span id="githubStatus" class="status-value">Not Connected</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Cache</span>
+                <span id="cacheStatus" class="status-value">0 packages</span>
+            </div>
+        </div>
+
+        <div class="main-container">
+            <div class="editor-panel">
+                <div class="panel-header">
+                    <span class="panel-title">Python Code</span>
+                    <div class="panel-actions">
+                        <select id="exampleSelect" class="select-input">
+                            <option value="">Load Example</option>
+                            <option value="basic">Basic Python</option>
+                            <option value="numpy">NumPy Example</option>
+                            <option value="pandas">Pandas Example</option>
+                            <option value="torch">PyTorch Example</option>
+                        </select>
+                        <button id="runBtn" class="btn-primary">Run</button>
+                    </div>
+                </div>
+                <textarea id="codeEditor" class="code-editor" spellcheck="false"># COBRA Python IDE
+# Write your code here
+
+print("Hello from COBRA")
+
+# Example with NumPy
+import numpy as np
+arr = np.array([1, 2, 3, 4, 5])
+print(f"Array mean: {arr.mean()}")</textarea>
+            </div>
+
+            <div class="output-panel">
+                <div class="panel-header">
+                    <span class="panel-title">Output</span>
+                    <button id="clearOutputBtn" class="btn-text">Clear</button>
+                </div>
+                <div id="outputArea" class="output-content">
+                    <div class="welcome-message">
+                        <p>COBRA Python IDE Ready</p>
+                        <small>Configure GitHub token in Settings for cloud execution</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+            <div class="loading-container">
+                <div class="loading-spinner"></div>
+                <div id="loadingText" class="loading-text">Processing...</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="settingsModal" class="modal" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h3>Settings</h3>
+                <button id="closeModalBtn" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-field">
+                    <label for="githubTokenInput">GitHub Token</label>
+                    <input type="password" id="githubTokenInput" placeholder="ghp_..." autocomplete="off">
+                    <small>Requires repo and workflow scopes</small>
+                </div>
+                <div class="form-field">
+                    <label for="githubRepoInput">Repository</label>
+                    <input type="text" id="githubRepoInput" placeholder="username/repo">
+                    <small>Your GitHub repository name</small>
+                </div>
+                <div class="form-field">
+                    <label for="workflowInput">Workflow File</label>
+                    <input type="text" id="workflowInput" value="execute-python.yml">
+                    <small>Workflow file name in .github/workflows/</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelSettingsBtn" class="btn-secondary">Cancel</button>
+                <button id="saveSettingsBtn" class="btn-primary">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <script type="module" src="js/core/optimized-engine.js"></script>
+</body>
+</html>
