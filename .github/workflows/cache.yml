@@ -1,0 +1,98 @@
+name: Update Library Cache from lib.txt
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # Every Sunday at midnight
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  download-all-libraries:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120  # 2 hours for all libraries
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Read lib.txt and create batch files
+        run: |
+          # Create directory for libraries
+          mkdir -p cache/libs
+          mkdir -p cache/wheels
+          mkdir -p cache/metadata
+          
+          # Read all libraries from lib.txt (skip comments and empty lines)
+          grep -v '^#' lib.txt | grep -v '^$' > all_libs.txt
+          
+          # Split into batches of 20 libraries
+          split -l 20 all_libs.txt batch_
+          
+          echo "Total libraries: $(wc -l < all_libs.txt)"
+          echo "Batches created: $(ls batch_* | wc -l)"
+      
+      - name: Download libraries (Batch ${{ matrix.batch }})
+        continue-on-error: true
+        run: |
+          batch_file=${{ matrix.batch }}
+          echo "Downloading libraries from $batch_file"
+          
+          while IFS= read -r lib; do
+            if [ -n "$lib" ]; then
+              echo "Downloading: $lib"
+              
+              # Try to download wheel
+              pip download --no-deps --dest cache/wheels "$lib" 2>/dev/null || true
+              
+              # Try binary wheels
+              pip download --only-binary=:all: --dest cache/wheels "$lib" 2>/dev/null || true
+              
+              # Try installing to cache
+              pip install --target cache/libs "$lib" 2>/dev/null || true
+              
+              # Record download time
+              echo "$lib: $(date -Iseconds)" >> cache/metadata/downloaded.txt
+            fi
+          done < "$batch_file"
+      
+      - name: Create master manifest
+        run: |
+          # Create library index
+          ls cache/libs/ > cache/library-index.txt 2>/dev/null || true
+          ls cache/wheels/ > cache/wheel-index.txt 2>/dev/null || true
+          
+          # Create metadata
+          cat > cache/metadata/manifest.json << EOF
+          {
+            "updated": "$(date -Iseconds)",
+            "total_libraries": $(wc -l < all_libs.txt),
+            "cached_libraries": $(ls cache/libs/ 2>/dev/null | wc -l),
+            "cached_wheels": $(ls cache/wheels/ 2>/dev/null | wc -l),
+            "libraries": $(jq -R -s -c 'split("\n")[:-1]' < all_libs.txt)
+          }
+          EOF
+      
+      - name: Upload to GitHub Cache
+        uses: actions/cache/save@v3
+        with:
+          path: cache/
+          key: python-master-cache-${{ github.run_id }}
+      
+      - name: Upload as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-library-cache
+          path: cache/
+          retention-days: 7
+      
+      - name: Update cache stats
+        run: |
+          echo "## Cache Update Complete" >> $GITHUB_STEP_SUMMARY
+          echo "- Total libraries: $(wc -l < all_libs.txt)" >> $GITHUB_STEP_SUMMARY
+          echo "- Cached libraries: $(ls cache/libs/ 2>/dev/null | wc -l)" >> $GITHUB_STEP_SUMMARY
+          echo "- Cached wheels: $(ls cache/wheels/ 2>/dev/null | wc -l)" >> $GITHUB_STEP_SUMMARY
+          echo "- Updated at: $(date)" >> $GITHUB_STEP_SUMMARY
