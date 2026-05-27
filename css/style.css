@@ -400,3 +400,23 @@ body {
         gap: 8px;
     }
 }
+/* Add these to existing CSS */
+
+.log-line {
+    padding: 2px 0;
+    font-family: monospace;
+    font-size: 12px;
+    border-left: 2px solid transparent;
+    padding-left: 8px;
+    margin-bottom: 2px;
+}
+
+.log-line.error {
+    border-left-color: #f85149;
+    color: #f85149;
+}
+
+.log-line.info {
+    border-left-color: #238636;
+    color: #c9d1d9;
+}
