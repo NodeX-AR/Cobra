@@ -1,0 +1,40 @@
+name: Execute Python Code
+
+on:
+  workflow_dispatch:
+    inputs:
+      code:
+        description: 'Base64 encoded Python code'
+        required: true
+        type: string
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Cache pip packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install numpy pandas torch torchvision transformers scikit-learn --progress-bar off
+      
+      - name: Execute code
+        run: |
+          echo '${{ inputs.code }}' | base64 -d > /tmp/code.py
+          echo "::group::Output"
+          python /tmp/code.py 2>&1
+          echo "::endgroup::"
