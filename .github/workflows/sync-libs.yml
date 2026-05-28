@@ -1,4 +1,4 @@
-name: Sync Python Libraries
+name: Sync Python Librariesg
 
 on:
   schedule:
@@ -15,7 +15,24 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
+        lfs: true
         fetch-depth: 0
+    
+    - name: Setup Git LFS
+      run: |
+        git lfs install
+        git lfs track "*.whl"
+        git lfs track "*.tar.gz"
+        git lfs track "*.zip"
+        git lfs track "libs/*.whl"
+        git lfs track "libs/*.tar.gz"
+        git lfs track "libs/**/*.whl"
+        git lfs track "libs/**/*.tar.gz"
+        git add .gitattributes
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git commit -m "chore: track library files with LFS" .gitattributes || echo "Already tracking"
+        git push origin main || echo "Already pushed"
     
     - name: Setup Python
       uses: actions/setup-python@v5
@@ -25,6 +42,7 @@ jobs:
     - name: Install tools
       run: |
         pip install pipdeptree requests packaging
+        pip install --upgrade pip
     
     - name: Create directories
       run: |
@@ -50,14 +68,20 @@ jobs:
                         pkg_name = re.split(r'[=<>!\[\]]', line)[0].strip()
                         requested_libs.append((line, pkg_name))
         
+        # Check if LFS files exist locally
         existing = set()
         libs_dir = Path('libs')
         if libs_dir.exists():
             for file in libs_dir.rglob('*'):
                 if file.suffix in ['.whl', '.gz', '.zip']:
-                    match = re.match(r'([a-zA-Z0-9_\-]+)-[0-9]', file.name)
-                    if match:
-                        existing.add(match.group(1))
+                    # For LFS, check if it's a pointer or actual file
+                    if file.is_file() and file.stat().st_size < 1000:
+                        # This is likely an LFS pointer
+                        pass
+                    else:
+                        match = re.match(r'([a-zA-Z0-9_\-]+)-[0-9]', file.name)
+                        if match:
+                            existing.add(match.group(1))
         
         missing = []
         for full, name in requested_libs:
@@ -82,14 +106,15 @@ jobs:
         for lib in $MISSING_LIBS; do
           echo "Downloading: $lib"
           pip download --no-deps --only-binary=:all: -d libs/wheels "$lib" 2>/dev/null || \
-          pip download --no-deps --no-binary=:all: -d libs/source "$lib" 2>/dev/null || \
+          pip download --no-deps -d libs/source "$lib" 2>/dev/null || \
           pip download -d libs "$lib" 2>/dev/null || \
           echo "Failed: $lib"
           
+          # Also get dependencies
           pip download -d libs "$lib" 2>/dev/null || true
         done
     
-    - name: Remove duplicates
+    - name: Remove duplicate versions
       run: |
         cd libs/wheels 2>/dev/null || exit 0
         for prefix in $(ls *.whl 2>/dev/null | sed -E 's/([a-zA-Z0-9_\-]+)-[0-9].*/\1/' | sort -u); do
@@ -116,7 +141,9 @@ jobs:
         if libs_dir.exists():
             for file in libs_dir.rglob('*'):
                 if file.suffix in ['.whl', '.gz', '.zip']:
-                    libraries.append(file.name)
+                    # Check if it's a real file (not LFS pointer)
+                    if file.stat().st_size > 1000 or file.suffix == '.gz':
+                        libraries.append(str(file.relative_to('.')))
         
         manifest = {
             "generated": datetime.utcnow().isoformat(),
@@ -135,33 +162,62 @@ jobs:
             for lib in manifest['libraries']:
                 f.write(f"{lib}\n")
             f.write("```\n")
+        
+        print(f"Total libraries: {len(libraries)}")
         EOF
     
-    - name: Check for changes
-      id: changes
+    - name: Pull LFS files before commit
       run: |
-        if git diff --quiet libs/; then
-          echo "has_changes=false" >> $GITHUB_OUTPUT
-        else
-          echo "has_changes=true" >> $GITHUB_OUTPUT
-        fi
+        git lfs pull
     
-    - name: Commit and push
-      if: steps.changes.outputs.has_changes == 'true'
+    - name: Commit and push with LFS
+      if: steps.check.outputs.missing_count > 0
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git add libs/ lib.txt
-        git commit -m "chore: sync python libraries [skip ci]"
-        git push
+        
+        # Pull latest LFS files
+        git lfs pull origin main || true
+        
+        # Add all library files
+        git add libs/
+        git add libs-manifest.json 2>/dev/null || true
+        
+        # Check if there are changes
+        if git diff --cached --quiet; then
+          echo "No changes to commit"
+        else
+          # Get stats
+          NEW_FILES=$(git diff --cached --name-only --diff-filter=A | wc -l)
+          LFS_FILES=$(git diff --cached --name-only | grep -E '\.(whl|gz|zip)$' | wc -l)
+          
+          git commit -m "chore: sync python libraries with LFS [skip ci]
+          
+          📦 Changes:
+          - New files: $NEW_FILES
+          - LFS tracked: $LFS_FILES
+          - Total libraries: $(find libs -name '*.whl' -o -name '*.tar.gz' 2>/dev/null | wc -l)"
+          
+          git push origin main
+        fi
+    
+    - name: Verify LFS tracking
+      run: |
+        echo "LFS tracked files:"
+        git lfs ls-files | head -20
+        echo ""
+        echo "Total LFS files: $(git lfs ls-files | wc -l)"
     
     - name: Summary
       run: |
         echo "## Library Sync Complete" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "- Total libraries: $(find libs -name '*.whl' -o -name '*.tar.gz' | wc -l)" >> $GITHUB_STEP_SUMMARY
-        echo "- New libraries: ${{ steps.check.outputs.missing_count }}" >> $GITHUB_STEP_SUMMARY
-        echo "- Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+        echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Total libraries | $(find libs -name '*.whl' -o -name '*.tar.gz' 2>/dev/null | wc -l) |" >> $GITHUB_STEP_SUMMARY
+        echo "| LFS tracked | $(git lfs ls-files | wc -l) |" >> $GITHUB_STEP_SUMMARY
+        echo "| New libraries | ${{ steps.check.outputs.missing_count }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Time | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
 
   cleanup:
     runs-on: ubuntu-latest
@@ -170,6 +226,13 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
+      with:
+        lfs: true
+    
+    - name: Setup Git LFS
+      run: |
+        git lfs install
+        git lfs pull
     
     - name: Clean old versions
       run: |
@@ -185,7 +248,7 @@ jobs:
         done
         cd ../..
     
-    - name: Commit cleanup
+    - name: Commit cleanup with LFS
       run: |
         if git diff --quiet libs/; then
           echo "No cleanup needed"
@@ -194,5 +257,5 @@ jobs:
           git config --local user.name "GitHub Action"
           git add libs/
           git commit -m "chore: cleanup old library versions [skip ci]"
-          git push
+          git push origin main
         fi
